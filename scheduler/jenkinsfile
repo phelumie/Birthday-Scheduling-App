@@ -1,0 +1,60 @@
+
+pipeline {
+    agent any
+
+    environment {
+        DOCKERHUB_CREDENTIALS=credentials('dockerhub')
+    }
+    tools {
+        maven "maven3"
+  
+    }
+    stages {
+        stage('checkout') {
+            steps {
+                git branch: 'main', credentialsId: '9e078e67-9fad-43ca-b0c5-feadb03fc060', poll: false, url: 'https://github.com/phelumie/Birthday-Scheduling-App.git'
+                
+            }
+            
+        }
+        
+        stage('Package jar') {
+            when {changeset "scheduler/*"}
+            steps {
+                sh "mvn -f scheduler/pom.xml package -DskipTests -X"
+                echo 'Package jar Completed' 
+            }
+        }
+        stage('Build image') {
+            when {changeset "scheduler/*"}
+            steps {
+                
+            echo 'Starting to build docker image'
+                script {
+                  def  dockerImage=docker.build("phelumiess/demo","-f scheduler/Dockerfile .")
+	                echo 'Build Image Completed' 
+            }
+            }
+        }
+        
+        stage ('docker login') {
+            when {changeset "scheduler/*"}
+            steps {
+                sh 'echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin'
+            }
+            
+        }
+        stage ('docker push to docherHub') {
+             steps {
+                 sh 'docker push phelumiess/demo:latest'
+             }
+         }
+        
+    }
+    
+    post{
+        always{
+            sh 'docker logout'
+        }
+    }
+}
